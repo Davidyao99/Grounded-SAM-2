@@ -14,7 +14,6 @@ from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 import torchvision 
-import time
 from tqdm import tqdm
 
 """
@@ -22,15 +21,16 @@ Hyper parameters
 """
 parser = argparse.ArgumentParser()
 parser.add_argument('--grounding-model', default="IDEA-Research/grounding-dino-base")
-parser.add_argument("--dir-path", default="./data_preprocessed/sintel")
+parser.add_argument("--workdir", default="./data_preprocessed/sintel")
 parser.add_argument("--sam2-checkpoint", default="./checkpoints/sam2.1_hiera_large.pt")
 parser.add_argument("--sam2-model-config", default="configs/sam2.1/sam2.1_hiera_l.yaml")
 parser.add_argument("--output-dir", default="gsam2")
+parser.add_argument("--input-dir", default="ram")
 parser.add_argument("--force-cpu", action="store_true")
 args = parser.parse_args()
 
 GROUNDING_MODEL = args.grounding_model
-INPUT_DIR = args.dir_path
+INPUT_DIR = args.workdir
 SAM2_CHECKPOINT = args.sam2_checkpoint
 SAM2_MODEL_CONFIG = args.sam2_model_config
 DEVICE = "cuda" if torch.cuda.is_available() and not args.force_cpu else "cpu"
@@ -66,8 +66,6 @@ def id_to_colors(id): # id to color
 
 videos = sorted(os.listdir(INPUT_DIR))
 
-start_time = time.time()
-
 for i,video in tqdm(enumerate(videos)):
 
     work_dir = os.path.join(INPUT_DIR, video)
@@ -77,7 +75,7 @@ for i,video in tqdm(enumerate(videos)):
     idx_to_id = [i for i in range(256*256*256)]
     np.random.shuffle(idx_to_id) # mapping to randomize idx to id to get random color
 
-    text_prompt_file = os.path.join(work_dir, "ram", "tags.json")
+    text_prompt_file = os.path.join(work_dir, args.input_dir, "tags.json")
     with open(text_prompt_file, "r") as f:
         dyn_objs = json.load(f)["dynamic"]
     text_input = ". ".join(dyn_objs)
@@ -212,12 +210,3 @@ for i,video in tqdm(enumerate(videos)):
             cv2.imwrite(os.path.join(output_path_mask, image_file), np.zeros(image.shape, dtype=np.uint8))
             with open(os.path.join(output_path_mask, image_file.replace(".png", ".json")), "w") as f:
                 json.dump([], f)
-
-torch.cuda.synchronize()
-total_time = time.time() - start_time
-
-with open("timing.txt", "a+") as f:
-    f.write(f"Ran on {work_dir}\n")
-    f.write(f"{videos}\n")
-    f.write(f"Total time taken: {total_time} seconds, Time per video: {total_time/len(videos)}\n")
-    f.write("--------------------\n")
